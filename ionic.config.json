@@ -1,0 +1,7 @@
+{
+  "name": "mi_spotify",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}
