@@ -1,0 +1,17 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+      <ion-icon name="play-outline" slot="start"></ion-icon>
+    </ion-buttons>
+    <ion-title>playing</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-button (click)="play()">play</ion-button>
+  <ion-card>
+    <img [src]="track.image" />
+    {{track.name}}
+  </ion-card>
+</ion-content>

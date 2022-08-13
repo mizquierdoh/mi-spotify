@@ -1,0 +1,33 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+      <ion-icon name="library-outline" slot="start"></ion-icon>
+    </ion-buttons>
+
+    <ion-title style="display:inline-block ;">Biblioteca</ion-title>
+
+    <ion-spinner *ngIf="cargando" slot="end"></ion-spinner>
+    <ion-button (click)=reloadLibrary() slot="end">
+      <ion-icon name="refresh-outline"></ion-icon>
+    </ion-button>
+  </ion-toolbar>
+  <ion-searchbar showCancelButton="focus" [(ngModel)]="name"></ion-searchbar>
+</ion-header>
+
+<ion-content>
+
+  <ion-list>
+    <ion-item *ngFor="let artist of artists" (click)="navigateToAlbums(artist.id)">
+      <ion-thumbnail style="margin-right: 1em;" *ngIf="!!artist.images[0]">
+        <img [src]="artist.images[0].url">
+      </ion-thumbnail>
+      <ion-label><strong>{{artist.name}}</strong>
+        <h2><em>{{artist.genres}}</em></h2>
+      </ion-label>
+
+    </ion-item>
+
+
+  </ion-list>
+</ion-content>
