@@ -15,6 +15,8 @@ export class LibraryService {
     return this.tracks.find(t => t.id === id);
   }
 
+
+
   artists: ArtistSpotify[] = [];
   albums: AlbumSpotify[] = [];
   tracks: TrackSpotify[] = [];
@@ -72,12 +74,13 @@ export class LibraryService {
       if (next) {
         after = artistResponse['artists']['cursors']['after'];
       }
-      artistResponse['artists']['items'].forEach(element => {
+      artistResponse['artists']['items'].forEach((element, index, array) => {
         let artist = new ArtistSpotify();
         artist.externalUrl = element['external_urls']['spotify'];
         artist.genres = element['genres'];
         artist.href = element['href'];
         artist.id = element['id'];
+        artist.uri = element['uri'];
         artist.images = element['images'].map(image => {
           let img: ImageSpotify = new ImageSpotify();
           img.height = image['height'];
@@ -103,7 +106,7 @@ export class LibraryService {
         if (next) {
           offset += 5;
         }
-        let albumsArtist: AlbumSpotify[] = albumsResponse['items'].map(element => {
+        let albumsArtist: AlbumSpotify[] = albumsResponse['items'].map((element, index, array) => {
           let album: AlbumSpotify = new AlbumSpotify();
           album.id = element['id'];
           album.name = element['name'];
@@ -112,6 +115,7 @@ export class LibraryService {
           album.artistName = artist.name;
           album.externalUrl = element['external_urls']['spotify'];
           album.href = element['href'];
+          album.uri = element['uri'];
           album.images = element['images'].map(image => {
             let img: ImageSpotify = new ImageSpotify();
             img.height = image['height'];
@@ -156,8 +160,10 @@ export class LibraryService {
           track.artistId = album.artistId;
           track.artistName = album.artistName;
           track.albumReleaseDate = album.releaseDate;
+          track.image = album.images[0].url;
           track.externalURL = element['external_urls']['spotify'];
           track.href = element['href'];
+          track.uri = element['uri'];
           return track;
         }).sort((a, b) => {
           let diff = a.discNumber - b.discNumber;

@@ -4,14 +4,93 @@
       <ion-menu-button></ion-menu-button>
       <ion-icon name="play-outline" slot="start"></ion-icon>
     </ion-buttons>
-    <ion-title>playing</ion-title>
+    <ion-title *ngIf="!!spotifyService.player?.album">
+      {{spotifyService.player?.album?.name}} ({{spotifyService.player?.album?.releaseDate | date:'yyyy'}})
+    </ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content>
-  <ion-button (click)="play()">play</ion-button>
-  <ion-card>
-    <img [src]="track.image" />
-    {{track.name}}
-  </ion-card>
+  <ion-button (click)="playRandomAlbum()">
+    <ion-icon size="large" name="disc-outline"></ion-icon>
+    <ion-icon name="shuffle-outline"></ion-icon>
+  </ion-button>
+  <ion-button (click)="playRandomTrack()">
+    <ion-icon size="large" name="musical-note-outline"></ion-icon>
+    <ion-icon name="shuffle-outline"></ion-icon>
+  </ion-button>
+
+
+
+
+  <ion-grid *ngIf="!!spotifyService.player?.song" fixed="false">
+    <ion-row>
+      <ion-col>
+        <ion-img [src]="spotifyService.player.album?.images[0].url"></ion-img>
+      </ion-col>
+    </ion-row>
+    <ion-row>
+      <ion-col>
+        <ion-range [max]="duration" [(ngModel)]="position" (ionChange)="seek($event)"></ion-range>
+        {{position | songTime}} / {{duration | songTime}}
+      </ion-col>
+    </ion-row>
+    <ion-row>
+      <ion-col class="botonera">
+        <ion-button size="large" color="success" shape="round" (click)="previous()">
+          <ion-icon name="play-skip-back"></ion-icon>
+        </ion-button>
+        <ion-button (click)="pause()" size="large" color="success" shape="round">
+          <ion-icon *ngIf="!spotifyService.player?.playing" name="play"></ion-icon>
+          <ion-icon *ngIf="spotifyService.player?.playing" name="pause"></ion-icon>
+        </ion-button>
+        <ion-button (click)="next()" size="large" color="success" shape="round">
+          <ion-icon name="play-skip-forward"></ion-icon>
+        </ion-button>
+
+      </ion-col>
+    </ion-row>
+    <ion-row>
+      <ion-col>
+        <ion-range [(ngModel)]="volume" (ionChange)="setVolume($event)" color="success">
+          <ion-icon color="success" *ngIf="volume==0" slot="start" name="volume-off"></ion-icon>
+          <ion-icon color="success" *ngIf="volume>0 && volume<=33" slot="start" name="volume-low"></ion-icon>
+          <ion-icon color="success" *ngIf="volume>33 && volume<=66" slot="start" name="volume-medium"></ion-icon>
+          <ion-icon color="success" *ngIf="volume>66" slot="start" name="volume-high"></ion-icon>
+        </ion-range>
+      </ion-col>
+      <ion-col>
+        <ion-button (click)="spotifyService.player.suffleAlbum = !spotifyService.player.suffleAlbum"
+          [color]="spotifyService.player.suffleAlbum?'success':'light'" shape="round">
+          <ion-icon size="large" name="shuffle-outline"></ion-icon>
+          <ion-icon name="disc-outline"></ion-icon>
+        </ion-button>
+        <ion-button (click)="spotifyService.player.suffleTrack = !spotifyService.player.suffleTrack"
+          [color]="spotifyService.player.suffleTrack?'success':'light'" shape="round">
+          <ion-icon size="large" name="shuffle-outline"></ion-icon>
+          <ion-icon name="musical-note-outline"></ion-icon>
+        </ion-button>
+      </ion-col>
+    </ion-row>
+    <ion-row>
+      <ion-col>
+        <ion-list>
+          <ion-item>
+
+            <h2>{{spotifyService.player?.song?.trackNumber}} - {{spotifyService.player?.song?.name}}</h2>
+
+          </ion-item>
+          <ion-item>
+            {{spotifyService.player?.artist?.name}}
+          </ion-item>
+          <ion-item>
+
+            <h2>{{spotifyService.player?.album?.name}}</h2>
+            <ion-label slot="end">({{spotifyService.player?.album?.releaseDate | date:'yyyy'}})</ion-label>
+
+          </ion-item>
+        </ion-list>
+      </ion-col>
+    </ion-row>
+  </ion-grid>
 </ion-content>

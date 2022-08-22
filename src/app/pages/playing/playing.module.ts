@@ -7,14 +7,16 @@ import { IonicModule } from '@ionic/angular';
 import { PlayingPageRoutingModule } from './playing-routing.module';
 
 import { PlayingPage } from './playing.page';
+import { PipesModule } from 'src/app/pipes/pipes.module';
 
 @NgModule({
   imports: [
     CommonModule,
     FormsModule,
     IonicModule,
-    PlayingPageRoutingModule
+    PlayingPageRoutingModule,
+    PipesModule
   ],
   declarations: [PlayingPage]
 })
-export class PlayingPageModule {}
+export class PlayingPageModule { }

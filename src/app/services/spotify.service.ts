@@ -2,7 +2,10 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import SpotifyPlayer from 'spotify-web-playback';
+import { MySpotifyPlayer } from '../entities/my-spotify-player';
 import { SpotifyToken } from '../entities/spotify-token';
+import { TrackSpotify } from '../entities/track-spotify';
+import { LibraryService } from './library.service';
 import { StorageService } from './storage.service';
 
 
@@ -18,7 +21,7 @@ export class SpotifyService {
 
   private token: SpotifyToken;
   autorizado: boolean = false;
-  public player: SpotifyPlayer;
+  public player: MySpotifyPlayer;
 
   constructor(private http: HttpClient, private storageService: StorageService) {
 
@@ -27,9 +30,21 @@ export class SpotifyService {
 
   async initPlayer() {
     if (!this.player) {
-      this.player = new SpotifyPlayer('Leftidos');
+      this.player = new MySpotifyPlayer('Leftidos');
       this.getToken().then(data => {
-        this.player.connect(data['access_token']).then(() => console.log(this.player.getPlaybackState()));
+        this.player.connect(data['access_token']).then(() => {
+          console.log(this.player.getPlaybackState());
+          this.player.setVolume(50);
+
+          this.player.addListener("error", error => {
+            console.error("Player error:", error);
+          });
+
+          this.player.addListener("ready", ready => {
+            console.log("Player ready:", ready);
+          });
+
+        });
 
       });
 
@@ -75,6 +90,7 @@ export class SpotifyService {
 
   async getToken(): Promise<SpotifyToken> {
     this.token = SpotifyToken.parse(await this.storageService.get("token"));
+    console.log(this.token);
     if (!!this.token) {
       if (new Date().getTime() < this.token.expires.getTime()) {
         this.autorizado = true;
@@ -114,6 +130,7 @@ export class SpotifyService {
         }
         this.autorizado = true;
         this.storageService.set("token", this.token);
+        this.initPlayer();
         resolve(this.token);
       }, (err) => {
         reject(err);
@@ -122,7 +139,7 @@ export class SpotifyService {
     });
   }
 
-  play(uri: string) {
+  play(uri: string, device: string) {
     return new Promise<void>(resolve => {
       this.getToken().then(data => {
         const token = data['access_token'];
@@ -135,13 +152,37 @@ export class SpotifyService {
           'context_uri': uri
         };
 
-        const url = `https://api.spotify.com/v1/me/player/play?device_id=a942202e4f69534c82139360d7a9c8ae7fc7af20`;
+        const url = `https://api.spotify.com/v1/me/player/play?device_id=${device}`;
         return this.http.put(url, JSON.stringify(body), { headers }).subscribe(response => {
           resolve()
 
         }, err => console.log(err));
       });
     });
+  }
+
+  addItemToPlaybackQueue(uri: string, device: string): Promise<void> {
+    return new Promise<void>((resolve) => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        const body = {
+          'context_uri': uri
+        };
+
+        const url = `https://api.spotify.com/v1/me/player/queue?device_id=${device}`;
+        return this.http.put(url, JSON.stringify(body), { headers }).subscribe(response => {
+          resolve();
+
+        }, err => console.log(err));
+      });
+    });
+
+
   }
 
   searchGrupo(nombre: string, offset: number): Promise<any> {
