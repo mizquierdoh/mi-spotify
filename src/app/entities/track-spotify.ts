@@ -27,10 +27,10 @@ export class TrackSpotify {
     track.discNumber = trackObject['discNumber'];
     track.albumId = trackObject['albumId'];
     track.albumName = trackObject['albumName'];
-    track.albumReleaseDate = new Date(trackObject['releaseDate']);
+    track.albumReleaseDate = trackObject['albumReleaseDate'];
     track.artistId = trackObject['artistId'];
     track.artistName = trackObject['artistName'];
-
+    track.image = trackObject['image'];
     track.externalURL = trackObject['externalURL'];
     track.href = trackObject['href'];
     track.uri = trackObject['uri'];
@@ -49,18 +49,23 @@ export class TrackSpotify {
     return trackSpotify;
   }
 
-  static parseWebPlaybackTrack(track: SpotifyWebPlaybackTrack): TrackSpotify {
+  static parseWebPlaybackTrack(track: any): TrackSpotify {
     let trackSpotify: TrackSpotify = new TrackSpotify();
     if (!!track) {
-      trackSpotify.albumId = track.album.uri.replace("spotify:album:", "");
-      trackSpotify.albumName = track.album.name;
-      trackSpotify.artistId = track.artists[0].uri.replace("spotify:artist:", "");
-      trackSpotify.artistName = track.artists[0].name;
-      trackSpotify.externalURL = "https://open.spotify.com/track/"
-      trackSpotify.id = track.id;
-      trackSpotify.name = track.name;
-      trackSpotify.uri = track.uri;
+      trackSpotify.albumId = track['album']['id'];
+      trackSpotify.albumName = track['album']['name'];
+      trackSpotify.albumReleaseDate = new Date(track['album']['release_date']);
+      trackSpotify.artistId = track['artists'][0]['id'];
+      trackSpotify.artistName = track['artists'][0]['name'];
+      trackSpotify.discNumber = track['disc_number'];
+      trackSpotify.externalURL = track['external_urls']['spotify'];
+      trackSpotify.href = track['href'];
+      trackSpotify.id = track['id'];
+      trackSpotify.image = track['album']['images'].sort((a, b) => b['width'] - a['width'])[0].url;
+      trackSpotify.name = track['name'];
+      trackSpotify.uri = track['uri'];
+      trackSpotify.trackNumber = track['track_number'];
     }
-    return trackSpotify
+    return trackSpotify;
   }
 }

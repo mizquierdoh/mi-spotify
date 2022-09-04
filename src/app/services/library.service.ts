@@ -4,6 +4,7 @@ import { AlbumSpotify } from '../entities/album-spotify';
 import { ArtistSpotify } from '../entities/artist-spotify';
 import { ImageSpotify } from '../entities/image-spotify';
 import { TrackSpotify } from '../entities/track-spotify';
+import { MusicStoryService } from './music-story.service';
 import { SpotifyService } from './spotify.service';
 import { StorageService } from './storage.service';
 
@@ -23,7 +24,9 @@ export class LibraryService {
   currentObservable: Observable<any>;
   loaded: boolean = false;
 
-  constructor(private spotifyService: SpotifyService, private storageService: StorageService) { }
+  constructor(private spotifyService: SpotifyService,
+    private musicStoryService: MusicStoryService,
+    private storageService: StorageService) { }
 
   async loadLibrary(r?: boolean) {
     if (!r && this.loaded) {
@@ -87,7 +90,7 @@ export class LibraryService {
           img.width = image['width'];
           img.url = image['url'];
           return img;
-        }).sort((a, b) => a.width - b.width);
+        }).sort((a, b) => b.width - a.width);
         artist.name = element['name'];
         this.artists.push(artist);
 
@@ -122,7 +125,7 @@ export class LibraryService {
             img.width = image['width'];
             img.url = image['url'];
             return img;
-          }).sort((a, b) => a.width - b.width);
+          }).sort((a, b) => b.width - a.width);
           return album;
         }).sort((a, b) => a.releaseDate.getTime() - b.releaseDate.getTime());
         this.albums = this.albums.concat(albumsArtist);
@@ -195,5 +198,63 @@ export class LibraryService {
 
   getArtist(artistId: string) {
     return this.artists.find(a => a.id === artistId);
+  }
+
+  getAlbumsByArtist(artistId: string): AlbumSpotify[] {
+    return this.albums.filter(album => album.artistId === artistId)
+      .sort((a, b) => a.releaseDate.getTime() - b.releaseDate.getTime());
+  }
+
+  getTracksByAlbum(albumId: string): TrackSpotify[] {
+    return this.tracks.filter(track => track.albumId === albumId)
+      .sort((a, b) => {
+        if (a.discNumber != b.discNumber) {
+          return a.discNumber - b.discNumber;
+        } else {
+          return a.trackNumber - b.trackNumber;
+        }
+      });
+  }
+
+  nextTrack(indexTotal: number): TrackSpotify {
+    const trackNow = this.tracks[indexTotal];
+    const tracksAlbum = this.getTracksByAlbum(trackNow.albumId);
+    const indexTrackNow = tracksAlbum.indexOf(trackNow);
+    if (indexTrackNow != tracksAlbum.length - 1) {
+      return tracksAlbum[indexTrackNow + 1];
+    }
+    const album = this.getAlbum(trackNow.albumId);
+    const indexAlbum = this.albums.indexOf(album);
+    return this.getTracksByAlbum(this.nextAlbum(indexAlbum).id)[0];
+  }
+
+  nextAlbum(indexTotal: number): AlbumSpotify {
+    const albumNow = this.albums[indexTotal];
+    const albumsArtist = this.getAlbumsByArtist(albumNow.artistId);
+    const indexAlbumNow = albumsArtist.indexOf(albumNow);
+    if (indexAlbumNow != albumsArtist.length - 1) {
+      return albumsArtist[indexAlbumNow + 1];
+    }
+    const artist = this.getArtist(albumNow.artistId);
+    const indexArtist = this.artists.indexOf(artist);
+    return this.getAlbumsByArtist(this.nextArtist(indexArtist).id)[0];
+
+
+  }
+
+  nextArtist(indexTotal): ArtistSpotify {
+    let index = indexTotal == this.artists.length - 1 ? 0 : indexTotal + 1;
+    return this.artists[index];
+
+  }
+
+  updateExcluded(album: AlbumSpotify) {
+    let index = this.albums.indexOf(album);
+    this.albums[index].excluded = album.excluded;
+    console.log("Update Excluded:", this.albums[index]);
+    this.spotifyService.getUserProfile().then(profileResponse => {
+      const user: string = profileResponse['id'];
+      this.storageService.set(user + "_albums", this.albums);
+    });
   }
 }

@@ -22,9 +22,13 @@
         <img [src]="album.images[0].url">
       </ion-thumbnail>
       <ion-label><strong>{{album.name}}</strong>
-        <h2><em>{{getArtist(album.artistId)}}</em></h2>
+        <h2><em>{{album.artistName}}</em></h2>
       </ion-label>
       <ion-label slot="end">{{album.releaseDate | date: 'y'}}</ion-label>
+      <ion-checkbox slot="end" [(ngModel)]="album.excluded" (ionChange)="libraryService.updateExcluded(album)"
+        color="danger">
+      </ion-checkbox>
+      <ion-icon slot="end" color="primary" (click)="play(album.uri)" name="play"></ion-icon>
 
     </ion-item>
 

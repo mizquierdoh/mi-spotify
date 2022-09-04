@@ -4,7 +4,7 @@ import { ArtistSpotify } from "./artist-spotify";
 import { TrackSpotify } from "./track-spotify";
 
 export class MySpotifyPlayer extends SpotifyPlayer {
-  private myVolume: number = 50;
+  private myVolume: number;
 
   get volume(): number {
     return this.myVolume;
@@ -16,8 +16,8 @@ export class MySpotifyPlayer extends SpotifyPlayer {
   }
 
   device: string;
-  suffleTrack: boolean = false;
-  suffleAlbum: boolean = false;
+  shuffleTrack: boolean = false;
+  shuffleAlbum: boolean = true;
   //Ahora
   artist: ArtistSpotify;
   album: AlbumSpotify;

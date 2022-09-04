@@ -48,8 +48,13 @@ export class AlbumsPage implements OnInit {
   }
 
   getArtist(artistId: string): string {
-    const artist = this.libraryService.artists.find(a => a.id === artistId);
+    const artist = this.libraryService.getArtist(artistId);
     return !!artist ? artist.name : "";
+  }
+
+  play(uri: string) {
+    console.log("Play album", uri);
+    this.spotifyService.play(uri);
   }
 
 }

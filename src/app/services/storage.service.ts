@@ -25,6 +25,9 @@ export class StorageService {
   }
 
   public async get(key: string): Promise<any> {
+    if (!this._storage) {
+      throw "Storage not ready";
+    }
     return await this._storage?.get(key);
   }
 }

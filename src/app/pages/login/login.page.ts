@@ -15,7 +15,13 @@ export class LoginPage implements OnInit {
     private route: ActivatedRoute,
     private router: Router) { }
 
-  ngOnInit() {
+  async ngOnInit() {
+    try {
+      await this.spotifyService.getToken();
+    } catch (err) {
+      console.log(err);
+    }
+
     if (this.spotifyService.autorizado) {
       this.router.navigateByUrl("/library");
     }

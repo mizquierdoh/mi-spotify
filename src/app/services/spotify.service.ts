@@ -1,11 +1,10 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { BooleanValueAccessorDirective } from '@ionic/angular/directives/control-value-accessors/boolean-value-accessor';
 import { Observable } from 'rxjs';
-import SpotifyPlayer from 'spotify-web-playback';
+import { DeviceSpotify } from '../entities/device-spotify';
 import { MySpotifyPlayer } from '../entities/my-spotify-player';
 import { SpotifyToken } from '../entities/spotify-token';
-import { TrackSpotify } from '../entities/track-spotify';
-import { LibraryService } from './library.service';
 import { StorageService } from './storage.service';
 
 
@@ -20,8 +19,9 @@ const redirect_uri = 'http://localhost:8100/login';
 export class SpotifyService {
 
   private token: SpotifyToken;
-  autorizado: boolean = false;
   public player: MySpotifyPlayer;
+  devices: DeviceSpotify[];
+  playing: boolean;
 
   constructor(private http: HttpClient, private storageService: StorageService) {
 
@@ -32,19 +32,7 @@ export class SpotifyService {
     if (!this.player) {
       this.player = new MySpotifyPlayer('Leftidos');
       this.getToken().then(data => {
-        this.player.connect(data['access_token']).then(() => {
-          console.log(this.player.getPlaybackState());
-          this.player.setVolume(50);
-
-          this.player.addListener("error", error => {
-            console.error("Player error:", error);
-          });
-
-          this.player.addListener("ready", ready => {
-            console.log("Player ready:", ready);
-          });
-
-        });
+        this.player.connect(data['access_token']);
 
       });
 
@@ -52,6 +40,18 @@ export class SpotifyService {
     console.log(this.player);
 
 
+  }
+
+  get autorizado(): boolean {
+    if (!this.token) {
+      return false;
+    }
+
+    if (this.token.expires.getTime() < new Date().getTime()) {
+      return false;
+    }
+
+    return true;
   }
 
 
@@ -88,21 +88,82 @@ export class SpotifyService {
     });
   }
 
+
+
+  getPlaybackState(): Promise<Observable<any>> {
+    return new Promise<any>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        const url = "https://api.spotify.com/v1/me/player"
+        resolve(this.http.get(url, { headers }));
+      });
+    });
+  }
+
+  getRecentlyPlayed(): Promise<Observable<any>> {
+    return new Promise<any>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        const url = "https://api.spotify.com/v1/me/player/recently-played"
+        resolve(this.http.get(url, { headers }));
+      });
+    });
+  }
+
+  getAvaiableDevices(): Promise<void> {
+    return new Promise<void>(resolve => {
+
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        const url = "https://api.spotify.com/v1/me/player/devices"
+        this.http.get(url, { headers }).subscribe(data => {
+          console.log("Devices: ", data);
+          this.devices = data['devices'].map(d => {
+            return DeviceSpotify.parse(d);
+          });
+          resolve();
+        });
+      });
+    });
+  }
+
   async getToken(): Promise<SpotifyToken> {
-    this.token = SpotifyToken.parse(await this.storageService.get("token"));
-    console.log(this.token);
+    if (!this.token) {
+      let storageListo: boolean = false;
+      while (!storageListo) {
+        try {
+          this.token = SpotifyToken.parse(await this.storageService.get("spotify_token"));
+          storageListo = true;
+        } catch (err) {
+          storageListo = false;
+        }
+      }
+    }
     if (!!this.token) {
       if (new Date().getTime() < this.token.expires.getTime()) {
-        this.autorizado = true;
         return new Promise<SpotifyToken>(resolve => {
           resolve(this.token);
         });
       } else {
-        this.autorizado = false;
-        return this.setToken(this.token.refresh_token);
+        try {
+          return this.setToken(this.token.refresh_token);
+        } catch (err) {
+          Promise.reject(err)
+        }
       }
     } else {
-      this.autorizado = false;
       Promise.reject();
     }
 
@@ -128,8 +189,7 @@ export class SpotifyService {
           expires: expires,
           refresh_token: res['refresh_token']
         }
-        this.autorizado = true;
-        this.storageService.set("token", this.token);
+        this.storageService.set("spotify_token", this.token);
         this.initPlayer();
         resolve(this.token);
       }, (err) => {
@@ -139,7 +199,94 @@ export class SpotifyService {
     });
   }
 
-  play(uri: string, device: string) {
+  playTrack(uri?: string, device?: string) {
+    return new Promise<void>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        let body = {};
+        if (!!uri) {
+          body["uris"] = [uri];
+        }
+        const url = 'https://api.spotify.com/v1/me/player/play'.concat(!!device ? `?device_id=${device}` : "");
+        return this.http.put(url, body, { headers }).subscribe(response => {
+
+          resolve();
+
+
+        }, err => console.error(err));
+      });
+    });
+  }
+
+  play(uri?: string, device?: string) {
+    return new Promise<void>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        let body = {};
+        if (!!uri) {
+          body["context_uri"] = uri;
+        }
+        const url = 'https://api.spotify.com/v1/me/player/play'.concat(!!device ? `?device_id=${device}` : "");
+        return this.http.put(url, body, { headers }).subscribe(response => {
+
+          resolve();
+
+
+        }, err => console.error(err));
+      });
+    });
+  }
+
+  setRepeatMode(state: "track" | "context" | "off", device?: string) {
+    return new Promise<void>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+
+        const url = `https://api.spotify.com/v1/me/player/repeat?state=${state}` + !!device ? `&device_id=${device}` : "";
+        return this.http.put(url, { headers }).subscribe(response => {
+          resolve()
+
+        }, err => console.error(err));
+      });
+    });
+  }
+
+  seekToPosition(position: number, device?: string) {
+    return new Promise<void>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+
+        const url = `https://api.spotify.com/v1/me/player/seek?position_ms=${position}`.concat(!!device ? `&device_id=${device}` : "");
+        return this.http.put(url, null, { headers }).subscribe(response => {
+          resolve()
+
+        }, err => console.error(err));
+      });
+    });
+  }
+
+
+  transferPlayback(device: string) {
     return new Promise<void>(resolve => {
       this.getToken().then(data => {
         const token = data['access_token'];
@@ -149,19 +296,94 @@ export class SpotifyService {
           'Authorization': `Bearer ${token}`
         });
         const body = {
-          'context_uri': uri
+          "device_ids": [device]
         };
 
-        const url = `https://api.spotify.com/v1/me/player/play?device_id=${device}`;
+        const url = `https://api.spotify.com/v1/me/player?device_id=${device}`;
         return this.http.put(url, JSON.stringify(body), { headers }).subscribe(response => {
           resolve()
 
-        }, err => console.log(err));
+        }, err => console.error(err));
       });
     });
   }
 
-  addItemToPlaybackQueue(uri: string, device: string): Promise<void> {
+  pause(device?: string) {
+    return new Promise<void>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        let url = 'https://api.spotify.com/v1/me/player/pause'.concat(!!device ? `?device_id=${device}` : "");
+        return this.http.put(url, null, { headers }).subscribe(response => {
+          resolve();
+
+        }, err => console.error(err));
+      });
+    });
+  }
+
+  togglePlaybackShuffle(state: boolean, device?: string) {
+    return new Promise<void>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        let url = `https://api.spotify.com/v1/me/player/shuffle?state=${state}`.concat(!!device ? `&device_id=${device}` : "");
+        return this.http.put(url, null, { headers }).subscribe(response => {
+          resolve();
+
+        }, err => console.error(err));
+      });
+    });
+  }
+
+  next(device: string) {
+    return new Promise<void>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        const url = `https://api.spotify.com/v1/me/player/next?device_id=${device}`;
+        return this.http.post(url, { headers }).subscribe(response => {
+          resolve()
+
+        }, err => console.error(err));
+      });
+    });
+  }
+
+  previous(device: string) {
+    return new Promise<void>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        const url = `https://api.spotify.com/v1/me/player/previous?device_id=${device}`;
+        return this.http.post(url, { headers }).subscribe(response => {
+          resolve()
+
+        }, err => console.error(err));
+      });
+    });
+  }
+
+
+
+
+  addItemToPlaybackQueue(uri: string, device?: string): Promise<void> {
     return new Promise<void>((resolve) => {
       this.getToken().then(data => {
         const token = data['access_token'];
@@ -174,11 +396,11 @@ export class SpotifyService {
           'context_uri': uri
         };
 
-        const url = `https://api.spotify.com/v1/me/player/queue?device_id=${device}`;
-        return this.http.put(url, JSON.stringify(body), { headers }).subscribe(response => {
+        let url = `https://api.spotify.com/v1/me/player/queue?uri=${uri}` + !!device ? `&device_id=${device}` : "";
+        return this.http.post(url, JSON.stringify(body), { headers }).subscribe(response => {
           resolve();
 
-        }, err => console.log(err));
+        }, err => console.error(err));
       });
     });
 
