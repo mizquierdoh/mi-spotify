@@ -9,7 +9,8 @@
     "build": "ng build",
     "test": "ng test",
     "lint": "ng lint",
-    "e2e": "ng e2e"
+    "e2e": "ng e2e",
+    "deploy": "ionic build --prod -- --base-href https://mizquierdoh.github.io/mi-spotify/ && npx angular-cli-ghpages --dir=www"
   },
   "private": true,
   "dependencies": {
@@ -19,6 +20,7 @@
     "@angular/platform-browser": "^14.0.0",
     "@angular/platform-browser-dynamic": "^14.0.0",
     "@angular/router": "^14.0.0",
+    "@awesome-cordova-plugins/in-app-browser": "^5.44.0",
     "@capacitor/android": "3.6.0",
     "@capacitor/app": "1.1.1",
     "@capacitor/core": "3.6.0",
@@ -27,7 +29,9 @@
     "@capacitor/status-bar": "1.0.8",
     "@ionic/angular": "^6.1.9",
     "@ionic/storage-angular": "^3.0.6",
+    "cordova-plugin-inappbrowser": "^5.0.0",
     "crypto-js": "^4.1.1",
+    "openai": "^3.2.1",
     "rxjs": "~6.6.0",
     "spotify-web-playback": "^1.4.0",
     "stream": "^0.0.2",

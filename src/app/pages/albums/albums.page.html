@@ -7,9 +7,6 @@
     <ion-title style="display:inline-block ;">Albums</ion-title>
 
     <ion-spinner *ngIf="cargando" slot="end"></ion-spinner>
-    <ion-button (click)=reloadLibrary() slot="end">
-      <ion-icon name="refresh-outline"></ion-icon>
-    </ion-button>
   </ion-toolbar>
   <ion-searchbar showCancelButton="focus" [(ngModel)]="name"></ion-searchbar>
 </ion-header>

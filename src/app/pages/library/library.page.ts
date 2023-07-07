@@ -1,6 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
+import { AlbumSpotify } from 'src/app/entities/album-spotify';
 import { ArtistSpotify } from 'src/app/entities/artist-spotify';
+import { TrackSpotify } from 'src/app/entities/track-spotify';
 import { LibraryService } from 'src/app/services/library.service';
 import { SpotifyService } from 'src/app/services/spotify.service';
 
@@ -24,6 +26,17 @@ export class LibraryPage implements OnInit {
     })
   }
 
+  get albums(): AlbumSpotify[] {
+    return this.libraryService.albums;
+  }
+
+  get tracks(): TrackSpotify[] {
+    return this.libraryService.tracks;
+  }
+
+  get elementoCargando() {
+    return this.libraryService.cargando;
+  }
 
   constructor(private spotifyService: SpotifyService,
     public libraryService: LibraryService,
@@ -34,8 +47,11 @@ export class LibraryPage implements OnInit {
     if (!this.spotifyService.autorizado) {
       this.router.navigateByUrl("/login");
     }
-    this.cargando = true;
-    this.libraryService.loadLibrary().then(res => this.cargando = false);
+    this.libraryService.loadLibrary().then(res => this.cargando = false, err => {
+      this.cargando = false;
+      this.libraryService.building = false;
+      alert("Error cargando la librería\n" + err);
+    });
 
 
 
@@ -44,6 +60,11 @@ export class LibraryPage implements OnInit {
   reloadLibrary() {
     this.cargando = true;
     this.libraryService.loadLibrary(true).then(res => this.cargando = false);
+  }
+
+  clearLibrary() {
+    this.cargando = true;
+    this.libraryService.clearLibrary().then(() => this.cargando = false);
   }
 
   navigateToAlbums(artistId: string) {

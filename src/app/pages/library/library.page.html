@@ -11,13 +11,16 @@
     <ion-button (click)=reloadLibrary() slot="end">
       <ion-icon name="refresh-outline"></ion-icon>
     </ion-button>
+    <ion-button (click)=clearLibrary() slot="end">
+      <ion-icon name="trash-outline"></ion-icon>
+    </ion-button>
   </ion-toolbar>
   <ion-searchbar showCancelButton="focus" [(ngModel)]="name"></ion-searchbar>
 </ion-header>
 
 <ion-content>
 
-  <ion-list>
+  <ion-list *ngIf="!cargando">
     <ion-item *ngFor="let artist of artists" (click)="navigateToAlbums(artist.id)">
       <ion-thumbnail style="margin-right: 1em;" *ngIf="!!artist.images[0]">
         <img [src]="artist.images[0].url">
@@ -29,5 +32,13 @@
     </ion-item>
 
 
+  </ion-list>
+  <ion-list *ngIf="cargando">
+    <ion-item>
+      {{artists.length}} artistas, {{albums.length}} albums, {{tracks.length}} pistas
+    </ion-item>
+    <ion-item>
+      <h2>{{elementoCargando.artist}}</h2> <br> {{elementoCargando.album}}
+    </ion-item>
   </ion-list>
 </ion-content>

@@ -16,6 +16,8 @@ export class LoginPage implements OnInit {
     private router: Router) { }
 
   async ngOnInit() {
+    this.spotifyService.redirectUri = location.origin + location.pathname;
+    console.log("redirect uri", this.spotifyService.redirectUri);
     try {
       await this.spotifyService.getToken();
     } catch (err) {

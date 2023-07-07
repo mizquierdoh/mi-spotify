@@ -3,9 +3,11 @@ import { Title } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { AlbumSpotify } from 'src/app/entities/album-spotify';
 import { ArtistSpotify } from 'src/app/entities/artist-spotify';
+import { GrupoResu } from 'src/app/entities/grupo-resu';
 import { TrackSpotify } from 'src/app/entities/track-spotify';
 import { LibraryService } from 'src/app/services/library.service';
 import { SpotifyService } from 'src/app/services/spotify.service';
+import resuJson from 'src/assets/data/resu.json';
 
 @Component({
   selector: 'app-playing',
@@ -13,9 +15,24 @@ import { SpotifyService } from 'src/app/services/spotify.service';
   styleUrls: ['./playing.page.scss'],
 })
 export class PlayingPage implements OnInit {
+  gruposResu: GrupoResu[];
 
   constructor(private spotifyService: SpotifyService, private libraryService: LibraryService,
-    private router: Router, private titleService: Title) { }
+    private router: Router, private titleService: Title) {
+    this.gruposResu = [];
+    for (const g of resuJson.grupos) {
+      let grupo: GrupoResu = new GrupoResu();
+      grupo.nombre = g.nombre;
+      grupo.dia = g.dia;
+      grupo.escenario = g.escenario;
+      grupo.relevancia = g.relevancia;
+      grupo.procedencia = g.procedencia;
+      grupo.descripcion = g.descripcion;
+      grupo.id = g.id_spotify;
+      this.gruposResu.push(grupo);
+    }
+
+  }
 
   randomAlbum: boolean = true;
   randomTrack: boolean = true;
@@ -28,23 +45,25 @@ export class PlayingPage implements OnInit {
   private _position: number
   selectedDevice: string;
   updating: boolean = false;
+  randomElements: string[] = [];
+  grupoResu: GrupoResu = null;
+
+  get player() {
+    return this.spotifyService.player;
+  }
+
+  get devices() {
+    return this.spotifyService.devices;
+  }
+  get playing() {
+    return this.spotifyService.playing;
+  }
 
 
   get position(): number {
     let position: number;
     if (this.spotifyService.playing) {
       position = Math.max(this.time.getTime() + this._position - this.lastUpdate, 0);
-      if (!this.updating && !!this.duration && this.duration != -1 && position >= this.duration) {
-        console.log("fin de la canción");
-        this.lastUpdate = new Date().getTime();
-        this._position = 0;
-        this.updateState().then((state) => {
-          if (!!state && !this.spotifyService.playing) {
-            this.nextSong(state);
-          }
-        });
-      }
-    } else {
       position = this._position;
     }
 
@@ -161,6 +180,10 @@ export class PlayingPage implements OnInit {
     return null;
   }
 
+  transferPlaybackEvent(event) {
+    this.transferPlayback(event.target.value);
+  }
+
   async transferPlayback(device) {
     await this.spotifyService.transferPlayback(device);
     this.updateState();
@@ -181,15 +204,19 @@ export class PlayingPage implements OnInit {
     });
   }
 
-  private updateState(): Promise<any> {
+  updateState(): Promise<any> {
+    if (this.randomElements.length > 0) {
+      this.spotifyService.addItemToPlaybackQueue(this.randomElements.shift(), this.selectedDevice);
+    }
     return new Promise<any>(resolve => {
-      if (this.updating) {
+      if (this.libraryService.building || this.updating) {
         resolve(null);
       }
       this.spotifyService.getPlaybackState().then(observable => {
         observable.subscribe(state => {
-          if (!state) {
+          if (!state || state == null) {
             resolve(null);
+            return;
           }
 
           this.updating = true;
@@ -222,12 +249,15 @@ export class PlayingPage implements OnInit {
                 }
                 if (!!state['item']['artists'] && state['item']['artists'].length > 0) {
                   this.spotifyService.player.artist = ArtistSpotify.parseWebPlaybackArtist(state['item']['artists'][0]);
+
                 }
               }
               console.log("sin encontrar");
 
             }
             this.titleService.setTitle(this.spotifyService.player.song.name);
+            this.mostrarDatosResu(this.spotifyService.player.artist.id);
+
           }
 
           this.updating = false;
@@ -264,6 +294,10 @@ export class PlayingPage implements OnInit {
   }
 
   next() {
+    if (this.spotifyService.player.shuffleTrack) {
+      this.playRandomTrack();
+      return;
+    }
     this.spotifyService.player.next().then(() => {
       this.updateState().then(state => {
         this.spotifyService.playing = true;
@@ -281,10 +315,12 @@ export class PlayingPage implements OnInit {
 
 
 
-  playRandomAlbum() {
+  async playRandomAlbum() {
     const albumsNotExcluded = this.libraryService.albums.filter(a => !a.excluded);
     const album = albumsNotExcluded[Math.floor(Math.random() * albumsNotExcluded.length)];
     console.log("album_uri:", album.uri);
+
+
     this.spotifyService.togglePlaybackShuffle(false).then(() => {
       this.spotifyService.play(album.uri).then(() => {
         this.updateState().then((state) => {
@@ -297,18 +333,18 @@ export class PlayingPage implements OnInit {
 
   }
 
-  playRandomTrack() {
+  async playRandomTrack() {
     const albumsNotExcluded = this.libraryService.albums.filter(a => !a.excluded);
     const tracksNotExcluded = this.libraryService.tracks.filter(t => !!albumsNotExcluded.find(a => a.id === t.albumId));
     const track = tracksNotExcluded[Math.floor(Math.random() * tracksNotExcluded.length)];
 
-    this.spotifyService.togglePlaybackShuffle(true).then(() => {
-      this.spotifyService.play(track.uri).then(() => {
-        this.updateState().then((state) => {
-          this.spotifyService.playing = true;
-        });
-      });
+    console.log("track_uri", track.uri);
+    await this.spotifyService.playTrack(track.uri);
+    await this.spotifyService.togglePlaybackShuffle(true);
+    this.updateState().then((state) => {
+      this.spotifyService.playing = true;
     });
+
   }
 
 
@@ -319,6 +355,49 @@ export class PlayingPage implements OnInit {
 
   ngOnDestroy() {
     clearInterval(this.intervalId);
+
+  }
+
+  async initPlayer() {
+    await this.spotifyService.initPlayer();
+    this.spotifyService.getAvaiableDevices().then(() => {
+      if (!!this.spotifyService.devices && this.spotifyService.devices.length >= 0) {
+        this.selectedDevice = this.spotifyService.devices[0].id;
+      } else {
+        this.initPlayer();
+      }
+    });
+
+  }
+
+  async startRandomTrack() {
+    this.playRandomTrack();
+    this.libraryService.getQueueRandomTracks().subscribe({
+      next: next => this.randomElements.push(next)
+    })
+
+  }
+
+  async createRandomTracksPlaylist() {
+    this.libraryService.createRandomTracksPlaylist();
+  }
+
+  startRandomAlbum() {
+    this.randomElements = this.libraryService.getQueueRandomAlbums();
+    console.log("elementos random", this.randomElements);
+    const element = this.randomElements.shift();
+
+    console.log("Playing element", element);
+    this.spotifyService.playTrack(element).then(() => {
+      this.updateState().then((state) => {
+        this.spotifyService.player.shuffleAlbum = true;
+      });
+    });
+  }
+
+  mostrarDatosResu(id: string) {
+    this.grupoResu = this.gruposResu.find(g => g.id === id);
+
 
   }
 

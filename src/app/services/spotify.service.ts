@@ -1,6 +1,6 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { BooleanValueAccessorDirective } from '@ionic/angular/directives/control-value-accessors/boolean-value-accessor';
+import { Router } from '@angular/router';
 import { Observable } from 'rxjs';
 import { DeviceSpotify } from '../entities/device-spotify';
 import { MySpotifyPlayer } from '../entities/my-spotify-player';
@@ -11,7 +11,8 @@ import { StorageService } from './storage.service';
 
 const client_id = '0ef858dc874e495a891f9ae9a1f01bf5'; // Your client id
 const client_secret = '547a96667ac94ba3992d07f7df66686e'; // Your secret
-const redirect_uri = 'http://localhost:8100/login';
+
+
 
 @Injectable({
   providedIn: 'root'
@@ -22,14 +23,17 @@ export class SpotifyService {
   public player: MySpotifyPlayer;
   devices: DeviceSpotify[];
   playing: boolean;
+  redirectUri: string;
 
-  constructor(private http: HttpClient, private storageService: StorageService) {
-
+  constructor(private http: HttpClient, private storageService: StorageService, private router: Router) {
+    console.log("location.origin", location.origin);
+    console.log("location.href", location.href);
+    console.log("location.pathname", location.pathname);
 
   }
 
   async initPlayer() {
-    if (!this.player) {
+    if (!this.player || !this.player.ready) {
       this.player = new MySpotifyPlayer('Leftidos');
       this.getToken().then(data => {
         this.player.connect(data['access_token']);
@@ -67,10 +71,11 @@ export class SpotifyService {
   };
 
   loginUrl(): string {
-    var scope = 'user-follow-read user-read-currently-playing playlist-read-collaborative playlist-read-private streaming user-read-email user-read-private user-library-read user-library-modify user-read-playback-state user-modify-playback-state';
+
+    var scope = 'user-follow-read user-read-currently-playing playlist-read-collaborative playlist-read-private streaming user-read-email user-read-private user-library-read user-library-modify user-read-playback-state user-modify-playback-state playlist-modify-public playlist-modify-private';
     var state = this.generateRandomString(16);
 
-    return `https://accounts.spotify.com/authorize?client_id=${client_id}&redirect_uri=${redirect_uri}&response_type=code&scope=${scope}&state=${state}`;
+    return `https://accounts.spotify.com/authorize?client_id=${client_id}&redirect_uri=${this.redirectUri}&response_type=code&scope=${scope}&state=${state}`;
 
   }
 
@@ -129,7 +134,7 @@ export class SpotifyService {
         });
         const url = "https://api.spotify.com/v1/me/player/devices"
         this.http.get(url, { headers }).subscribe(data => {
-          console.log("Devices: ", data);
+          //console.log("Devices: ", data);
           this.devices = data['devices'].map(d => {
             return DeviceSpotify.parse(d);
           });
@@ -140,39 +145,47 @@ export class SpotifyService {
   }
 
   async getToken(): Promise<SpotifyToken> {
+    console.log("01-Inicio", this.token);
     if (!this.token) {
+      //console.log("02-no hay token guardado, se busca del storage");
       let storageListo: boolean = false;
       while (!storageListo) {
         try {
           this.token = SpotifyToken.parse(await this.storageService.get("spotify_token"));
           storageListo = true;
+          //console.log("03-Token encontrado en storage", this.token);
         } catch (err) {
           storageListo = false;
         }
       }
     }
     if (!!this.token) {
+      //console.log("04-Ya tenemos token", this.token);
       if (new Date().getTime() < this.token.expires.getTime()) {
+        //console.log("06-El token no ha expirado, perfecto", this.token);
         return new Promise<SpotifyToken>(resolve => {
           resolve(this.token);
         });
       } else {
+        //console.log("07-El token ha expirado, intentamos refrescarlo", this.token);
         try {
-          return this.setToken(this.token.refresh_token);
+          return this.refreshToken();
         } catch (err) {
-          Promise.reject(err)
+          this.router.navigateByUrl("/login");
+          Promise.reject(err);
         }
       }
     } else {
+      //console.log("05-Ni con esas hay token, volvemos a login");
+      // this.router.navigateByUrl("/login");
       Promise.reject();
     }
 
   }
 
-  setToken(code?: String): Promise<SpotifyToken> {
-
+  private refreshToken(): Promise<SpotifyToken> {
     const authorizationTokenUrl = `https://accounts.spotify.com/api/token`;
-    const body = `code=${code}&redirect_uri=${redirect_uri}&grant_type=authorization_code`;
+    let body = `grant_type=refresh_token&refresh_token=${this.token.refresh_token}`;
     return new Promise<SpotifyToken>((resolve, reject) => {
       this.http.post(authorizationTokenUrl, body, {
         headers: new HttpHeaders({
@@ -181,6 +194,7 @@ export class SpotifyService {
           'Content-Type': 'application/x-www-form-urlencoded;',
         }),
       }).subscribe(res => {
+        //console.log("11b-Obtenemos la respuesta", res);
         let expires = new Date();
         expires.setTime(expires.getTime() + res['expires_in'] * 1000);
 
@@ -193,7 +207,49 @@ export class SpotifyService {
         this.initPlayer();
         resolve(this.token);
       }, (err) => {
+        //console.log("12-Ha fallado el refresco", err);
         reject(err);
+        // this.router.navigateByUrl("/login");
+      }
+      );
+    });
+
+  }
+
+  setToken(code?: String): Promise<SpotifyToken> {
+    if (!this.redirectUri) {
+      //console.log("08-No hay redirección, volvemos a login");
+      // this.router.navigateByUrl("/login");
+    }
+    //console.log("09-Hay redirección", this.redirectUri);
+
+    const authorizationTokenUrl = `https://accounts.spotify.com/api/token`;
+    const body = `code=${code}&redirect_uri=${this.redirectUri}&grant_type=authorization_code`;
+    //console.log("10-Refrescamos el token", body);
+
+    return new Promise<SpotifyToken>((resolve, reject) => {
+      this.http.post(authorizationTokenUrl, body, {
+        headers: new HttpHeaders({
+          Authorization:
+            'Basic  ' + btoa(client_id + ':' + client_secret),
+          'Content-Type': 'application/x-www-form-urlencoded;',
+        }),
+      }).subscribe(res => {
+        //console.log("11-Obtenemos la respuesta", res);
+        let expires = new Date();
+        expires.setTime(expires.getTime() + res['expires_in'] * 1000);
+
+        this.token = {
+          access_token: res['access_token'],
+          expires: expires,
+          refresh_token: res['refresh_token']
+        }
+        this.storageService.set("spotify_token", this.token);
+        this.initPlayer();
+        resolve(this.token);
+      }, (err) => {
+        //console.log("12-Ha fallado el refresco", err);
+        // this.router.navigateByUrl("/login");
       }
       );
     });
@@ -242,7 +298,7 @@ export class SpotifyService {
           resolve();
 
 
-        }, err => console.error(err));
+        }, err => console.error("Error al reproducir", err));
       });
     });
   }
@@ -396,7 +452,10 @@ export class SpotifyService {
           'context_uri': uri
         };
 
-        let url = `https://api.spotify.com/v1/me/player/queue?uri=${uri}` + !!device ? `&device_id=${device}` : "";
+        let url = `https://api.spotify.com/v1/me/player/queue?uri=${uri}`;
+        if (!!device && device.length > 0) {
+          url = url + `&device_id=${device}`;
+        }
         return this.http.post(url, JSON.stringify(body), { headers }).subscribe(response => {
           resolve();
 
@@ -505,6 +564,105 @@ export class SpotifyService {
       });
     });
   }
+
+  getCurrentUsersPlayilst(offset: number = 0) {
+    return new Promise<any>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        const url = `https://api.spotify.com/v1/me/playlists?limit=50&offset=${offset}`;
+        this.http.get(url, { headers }).subscribe(response => {
+          resolve(response);
+        });
+
+      });
+    });
+  }
+
+  getPlaylistItems(id: string, offset: number = 0) {
+    return new Promise<any>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        const url = `https://api.spotify.com/v1/playlists/${id}/tracks?limit=50&offset=${offset}`;
+        this.http.get(url, { headers }).subscribe(response => {
+          resolve(response);
+        });
+
+      });
+    });
+  }
+
+  removePlaylistItems(id: string, tracks, snapshot_id: string) {
+    const body = {
+      tracks, snapshot_id
+    };
+    return new Promise<any>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        const url = `https://api.spotify.com/v1/playlists/${id}/tracks`;
+        this.http.delete(url, { headers, body }).subscribe(response => {
+          resolve(response);
+        });
+
+      });
+    });
+  }
+
+  createPlaylist(user: string) {
+    const body = {
+      name: "Random",
+      public: false,
+      collaborative: false,
+      description: "Lista con canciones aleatorias de los grupos seguidos"
+    }
+    return new Promise<any>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        const url = `https://api.spotify.com/v1/users/${user}/playlists`;
+        return this.http.post(url, body, { headers }).subscribe(response => {
+          resolve(response)
+
+        }, err => console.error(err));
+      });
+    });
+  }
+
+  addPlaylistItems(id: string, uris: string[], position: number = 0) {
+    const body = {
+      uris, position
+    };
+    return new Promise<any>(resolve => {
+      this.getToken().then(data => {
+        const token = data['access_token'];
+        const headers = new HttpHeaders({
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        });
+        const url = `https://api.spotify.com/v1/playlists/${id}/tracks`;
+        this.http.post(url, body, { headers }).subscribe(response => {
+          resolve(response);
+        });
+
+      });
+    });
+  }
+
 
   getUserProfile(): Promise<any> {
     return new Promise<any>((resolve, reject) => {
